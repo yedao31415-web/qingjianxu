@@ -1,0 +1,15 @@
+# 依赖与系统文件
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+
+# 源数据：只在本机作为 seed.json 的生成源，绝不进入版本库或发布目录
+data/source/*.xlsx
+data/source/*.xls
+data/source/*.csv
+
+# 开发工具与临时产物
+.tools/
+.shots/
+*.zip

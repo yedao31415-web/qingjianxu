@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="青简叙">
+  <rect width="512" height="512" rx="116" fill="#2c5a4b"/>
+  <rect width="512" height="512" rx="116" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3d7461"/>
+      <stop offset=".62" stop-color="#2c5a4b"/>
+      <stop offset="1" stop-color="#1d3b31"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#ece5d2"/>
+    </linearGradient>
+  </defs>
+
+  <g fill="url(#paper)">
+    <rect x="116" y="128" width="66" height="252" rx="16" opacity=".86"/>
+    <rect x="198" y="108" width="66" height="292" rx="16"/>
+    <rect x="280" y="128" width="66" height="252" rx="16" opacity=".86"/>
+  </g>
+
+  <g stroke="#2c5a4b" stroke-width="7" stroke-linecap="round" opacity=".55">
+    <path d="M140 186h18M222 166h18M304 186h18"/>
+    <path d="M140 244h18M222 224h18M304 244h18"/>
+    <path d="M140 302h18M222 282h18M304 302h18"/>
+  </g>
+
+  <g stroke="#c9b487" stroke-width="9" stroke-linecap="round" opacity=".9">
+    <path d="M104 214h248"/>
+    <path d="M104 330h248"/>
+  </g>
+
+  <rect x="318" y="330" width="112" height="112" rx="22" fill="#a8452f"/>
+  <text x="374" y="414" text-anchor="middle" font-family="Songti SC, STSong, serif" font-size="70" font-weight="700" fill="#fff6e8">叙</text>
+</svg>

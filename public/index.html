@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>青简叙 · 考试纪事与倒数日</title>
+<meta name="description" content="把教务考试总表变成可筛选、可倒数、可录入实验与考试的一页青简。数据只存本机，支持导出 Excel / PDF / CSV / Word。" />
+<meta name="theme-color" content="#f4f1e8" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#13150f" media="(prefers-color-scheme: dark)" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="青简叙" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- 倒数日自定义壁纸（仅倒数日视图显示） -->
+  <div class="wallpaper" id="wallpaperLayer" hidden aria-hidden="true">
+    <div class="wallpaper__img" id="wallpaperImg"></div>
+    <div class="wallpaper__scrim" id="wallpaperScrim"></div>
+  </div>
+
+  <!-- 顶部品牌栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand__seal" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none">
+          <rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="currentColor" opacity=".1"/>
+          <rect x="1.5" y="1.5" width="29" height="29" rx="7" stroke="currentColor" stroke-width="1.4" opacity=".55"/>
+          <path d="M9.5 10.5h13M9.5 16h9.5M9.5 21.5h13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <circle cx="23.4" cy="16" r="1.5" fill="#a8452f"/>
+        </svg>
+      </span>
+      <div class="brand__text">
+        <strong>青简叙</strong>
+        <small>考试纪事 · QINGJIAN</small>
+      </div>
+    </div>
+    <button class="avatar" id="profileBtn" type="button" aria-label="我的档案">
+      <span id="avatarText">我</span>
+    </button>
+  </header>
+
+  <!-- 总表切换 -->
+  <div class="dataset-bar">
+    <button class="dataset-pill" id="datasetBtn" type="button" aria-haspopup="dialog">
+      <span class="dataset-pill__dot" aria-hidden="true"></span>
+      <span class="dataset-pill__name" id="datasetName">正在展卷…</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <span class="dataset-meta" id="datasetMeta"></span>
+  </div>
+
+  <main class="main" id="main">
+    <!-- ============================ 倒数日 ============================ -->
+    <section class="view view--countdown" id="view-countdown" aria-labelledby="tab-countdown">
+      <div id="countdownBody"></div>
+    </section>
+
+    <!-- ============================ 考程表 ============================ -->
+    <section class="view view--exams" id="view-exams" hidden>
+      <div class="search-wrap">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+          </svg>
+          <input id="searchInput" type="search" inputmode="search" enterkeyhint="search"
+                 placeholder="搜索课程、教室、班级或备注" autocomplete="off" />
+          <button class="search__clear" id="searchClear" type="button" aria-label="清空搜索" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-bar" id="filterBar">
+        <button class="fchip" data-filter="grade" type="button">
+          <span class="fchip__label">年级</span><span class="fchip__value">全部</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="fchip" data-filter="major" type="button">
+          <span class="fchip__label">专业</span><span class="fchip__value">全部</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="fchip" data-filter="class" type="button">
+          <span class="fchip__label">班级</span><span class="fchip__value">全部</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="fchip fchip--reset" id="resetFilter" type="button" hidden>重置</button>
+      </div>
+
+      <div class="result-bar">
+        <div class="result-bar__text">
+          <strong id="resultCount">0</strong> 场
+          <span id="resultSub"></span>
+        </div>
+        <div class="result-bar__actions">
+          <button class="btn btn--ghost btn--sm" id="addEntryBtn" data-act="add-entry" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            录入
+          </button>
+          <button class="btn btn--primary btn--sm" id="exportBtn" data-act="export" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 18h16"/>
+            </svg>
+            导出
+          </button>
+        </div>
+      </div>
+
+      <div id="examList" class="exam-list"></div>
+    </section>
+
+    <!-- ============================== 我的 ============================== -->
+    <section class="view view--me" id="view-me" hidden>
+      <div id="meBody"></div>
+    </section>
+  </main>
+
+  <!-- 底部导航 -->
+  <nav class="tabbar" role="tablist" aria-label="主导航">
+    <button class="tab is-active" data-view="countdown" role="tab" aria-selected="true" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 3.5h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2z"/>
+        <path d="M9 8h6M9 12h4"/><path d="M15.5 16.2l1.6 1.6 3-3.2"/>
+      </svg>
+      <span>倒数日</span>
+    </button>
+    <button class="tab" data-view="exams" role="tab" aria-selected="false" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>
+      </svg>
+      <span>考程表</span>
+    </button>
+    <button class="tab" data-view="me" role="tab" aria-selected="false" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c.9-3.6 3.8-5.6 7.2-5.6s6.3 2 7.2 5.6"/>
+      </svg>
+      <span>我的</span>
+    </button>
+
+    <!-- 制作者标识：常驻右下角，点击查看说明 -->
+    <button class="credit" id="creditBadge" data-act="about" type="button" aria-label="制作者 叶盗，点击查看关于与数据说明">
+      <img class="credit__sign" id="creditSign" src="assets/credit-sign.png" alt="" />
+      <span class="credit__fallback" id="creditText" hidden>叶盗</span>
+      <span class="credit__meta"><em>制作者</em><b>叶盗</b></span>
+    </button>
+  </nav>
+</div>
+
+<!-- 通用底部面板 -->
+<div class="sheet-layer" id="sheetLayer" hidden>
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet__handle" aria-hidden="true"></div>
+    <header class="sheet__head">
+      <h2 id="sheetTitle">标题</h2>
+      <button class="sheet__close" id="sheetClose" type="button" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="sheet__body" id="sheetBody"></div>
+    <div class="sheet__foot" id="sheetFoot" hidden></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="loading" id="loading" hidden>
+  <div class="loading__card">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="loadingText">处理中…</p>
+    <span id="loadingSub"></span>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.json" multiple hidden />
+<input type="file" id="wallpaperInput" accept="image/*" hidden />
+
+<script src="assets/js/db.js" defer></script>
+<script src="assets/js/export.js" defer></script>
+<script src="assets/js/app.js" defer></script>
+</body>
+</html>
