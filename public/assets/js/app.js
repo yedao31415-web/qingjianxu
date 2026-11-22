@@ -1223,7 +1223,7 @@
     html += '<div class="menu-card">' +
       menuRow("users", "切换使用者", "同机多人使用，配置互不干扰", S.profiles.length + " 个档案", "switch-profile") +
       menuRow("database", "总表管理", ds ? (ds.summary.recordCount + " 条 · " + ds.summary.classCount + " 个班级") : "尚未载入", ds ? "当前" : "", "manage-dataset") +
-      menuRow("upload", "导入考试总表", "支持 xlsx / xls / csv，可多选", "", "import") +
+      menuRow("upload", "导入考试总表", "支持 xlsx / xls / csv / json 数据包", "", "import") +
       "</div>";
 
     html += '<div class="menu-card">' +
