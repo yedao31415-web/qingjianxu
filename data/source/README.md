@@ -6,7 +6,7 @@
 ## 生成示例数据（默认，可安全公开）
 
 ```bash
-npm run build:seed
+npm run seed
 ```
 
 - 日期以运行时的「本周周一」为锚点，向后排三周，保证随时都有可倒数的场次；
@@ -18,7 +18,7 @@ npm run build:seed
 1. 把总表放在本目录（`*.xlsx` / `*.xls` / `*.csv` 已被 `.gitignore` 排除）；
 2. 运行 `node scripts/build-seed.mjs data/source/你的总表.xlsx`；
 3. **不要提交** 该总表与真实数据版本的 `seed.json`，也不要把它部署到公开站点；
-4. 需要撤销时重新运行 `npm run build:seed` 恢复示例数据。
+4. 需要撤销时重新运行 `npm run seed` 恢复示例数据。
 
 更推荐的做法：直接部署示例版本，打开网页后用「我的 → 导入考试总表」导入真实总表。
 文件只在浏览器内解析，记录存进本机 IndexedDB，不会上传，也不进入仓库。
