@@ -1,6 +1,6 @@
 {
   "name": "qingjianxu",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "青简叙 3.0：考试纪事与倒数日，支持手动录入实验/考试、自定义壁纸，可直接部署到 GitHub Pages",
   "keywords": ["exam-schedule", "countdown", "indexeddb", "sheetjs", "pwa", "github-pages"],
@@ -11,6 +11,7 @@
     "check": "node scripts/check-release.mjs",
     "seed": "node scripts/demo-seed.mjs",
     "build:seed": "node scripts/build-seed.mjs",
+    "test:parser": "node scripts/test-parser.mjs",
     "find": "node skills/exam-finder/find.mjs"
   }
 }

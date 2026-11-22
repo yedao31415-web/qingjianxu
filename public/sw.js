@@ -2,7 +2,7 @@
  * 策略：应用文件网络优先（更新即时生效），第三方库缓存优先（体积大、变动少）。
  * 离线时回退到缓存；所有路径均为相对路径，随 GitHub Pages 子路径解析。
  */
-const VERSION = "qingjianxu-v3.0.0";
+const VERSION = "qingjianxu-v3.0.1";
 const SHELL = [
   "./",
   "./index.html",

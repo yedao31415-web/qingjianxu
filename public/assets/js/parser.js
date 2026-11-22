@@ -19,19 +19,21 @@
    * 字段别名表：score 越高越优先，避免「教学班组成」被误判为「班级」
    * ------------------------------------------------------------------ */
   var FIELDS = [
-    { key: "course", aliases: ["课程名称", "考试课程", "课程名", "考试科目", "科目", "课程"] },
-    { key: "code", aliases: ["课程号", "课程代码", "课程编号"] },
-    { key: "date", aliases: ["考试日期", "日期"] },
-    { key: "time", aliases: ["考试时间", "考试时段", "时间段", "时间", "时段"] },
-    { key: "room", aliases: ["已排地点", "考试地点", "考场", "考试教室", "地点", "教室"] },
-    { key: "cls", aliases: ["班级", "行政班", "班级名称", "学生班级", "班级简称"] },
-    { key: "grade", aliases: ["年级", "级"] },
-    { key: "major", aliases: ["专业", "专业名称"] },
-    { key: "college", aliases: ["开课学院", "开课单位", "学院", "开课部门"] },
-    { key: "count", aliases: ["人数", "报考人数", "考试人数", "考生人数"] },
-    { key: "week", aliases: ["周次", "教学周"] },
-    { key: "weekday", aliases: ["星期", "星期几", "周几"] },
-    { key: "teaching", aliases: ["教学班组成", "教学班", "合班", "考试班级"] }
+    { key: "course", aliases: ["课程名称", "考试课程", "课程名", "考试科目", "科目", "课程", "coursename", "course", "subject"] },
+    { key: "code", aliases: ["课程号", "课程代码", "课程编号", "coursecode", "code"] },
+    { key: "date", aliases: ["考试日期", "日期", "examdate", "date"] },
+    { key: "time", aliases: ["考试时间", "考试时段", "时间段", "时间", "时段", "examtime"] },
+    { key: "startTime", aliases: ["开始时间", "开考时间", "起始时间", "考试开始时间", "starttime", "start"] },
+    { key: "endTime", aliases: ["结束时间", "终止时间", "考试结束时间", "endtime", "end"] },
+    { key: "room", aliases: ["已排地点", "考试地点", "考场", "考试教室", "地点", "教室", "课室", "试室", "venue", "room", "location"] },
+    { key: "cls", aliases: ["班级", "行政班", "班级名称", "学生班级", "班级简称", "classname", "class"] },
+    { key: "grade", aliases: ["年级", "级", "grade"] },
+    { key: "major", aliases: ["专业", "专业名称", "major"] },
+    { key: "college", aliases: ["开课学院", "开课单位", "学院", "开课部门", "院系", "系部", "college", "department"] },
+    { key: "count", aliases: ["人数", "报考人数", "考试人数", "考生人数", "考生数", "count", "students"] },
+    { key: "week", aliases: ["周次", "教学周", "week"] },
+    { key: "weekday", aliases: ["星期", "星期几", "周几", "weekday"] },
+    { key: "teaching", aliases: ["教学班组成", "教学班", "合班", "考试班级", "考试对象"] }
   ];
 
   var SKIP_ROW = /^(合计|小计|总计|备注|说明|注[:：]|制表|审核|注$)/;
@@ -97,9 +99,14 @@
     var best = null;
     for (var r = 0; r < limit; r++) {
       var s = scoreRow(matrix[r] || []);
-      var ok = s.map.course !== undefined && (s.map.time !== undefined || s.map.date !== undefined);
+      var ok = s.map.course !== undefined && (s.map.time !== undefined || s.map.date !== undefined || s.map.startTime !== undefined);
       if (!ok) continue;
-      var hasOwner = s.map.cls !== undefined || s.map.grade !== undefined || s.map.major !== undefined;
+      // 只写「考试班级 / 教学班」的表也能用：后续会按班级拆行
+      var hasOwner =
+        s.map.cls !== undefined ||
+        s.map.grade !== undefined ||
+        s.map.major !== undefined ||
+        s.map.teaching !== undefined;
       if (!hasOwner) continue;
       if (!best || s.weight > best.weight) best = { row: r, map: s.map, weight: s.weight };
     }
@@ -158,102 +165,169 @@
     return hour;
   }
 
+  function fmtDate(d) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  /** 解析日期文本；缺年份时按“最近考期”推断，避免 1 月表被算成上一年 */
+  function parseDateText(text, year) {
+    var t = normText(text);
+    if (!t) return "";
+    var dm = t.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?/);
+    if (dm) return dm[1] + "-" + pad2(dm[2]) + "-" + pad2(dm[3]);
+    var m2 = t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+    if (m2) {
+      var y = Number(year) || new Date().getFullYear();
+      var guess = new Date(y, +m2[1] - 1, +m2[2]);
+      if (guess.getTime() < Date.now() - 180 * 86400000) y += 1;
+      return y + "-" + pad2(m2[1]) + "-" + pad2(m2[2]);
+    }
+    return "";
+  }
+
+  /** 解析纯时段：09:00-11:00 / 上午9:00—11:00 / 9点 / Excel 时间小数 */
+  function clockRange(raw) {
+    var u = normText(raw);
+    var out = { start: "", end: "" };
+    if (!u) return out;
+
+    var rm = u.match(/(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})\s*[-–—~～至到]\s*(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})/);
+    if (rm) {
+      out.start = pad2(normalizeHour(+rm[2], rm[1])) + ":" + rm[3];
+      out.end = pad2(normalizeHour(+rm[5], rm[4])) + ":" + rm[6];
+      return out;
+    }
+
+    var sm = u.match(/(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})/);
+    if (sm) {
+      out.start = pad2(normalizeHour(+sm[2], sm[1])) + ":" + sm[3];
+      return out;
+    }
+
+    var cm = u.match(/(上午|下午|晚上|中午)?\s*(\d{1,2})\s*点\s*(半|\d{1,2})?/);
+    if (cm) {
+      var mm = cm[3] === "半" ? 30 : (cm[3] ? +cm[3] : 0);
+      out.start = pad2(normalizeHour(+cm[2], cm[1])) + ":" + pad2(mm);
+      return out;
+    }
+
+    if (/^0?\.\d+$/.test(u)) {
+      var total = Math.round(parseFloat(u) * 1440);
+      total = ((total % 1440) + 1440) % 1440;
+      out.start = pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
+    }
+    return out;
+  }
+
+  /** 日期列统一成文本：支持文本、Date、Excel 序列号 */
+  function normalizeDateRaw(raw) {
+    if (raw instanceof Date && !isNaN(raw)) return fmtDate(raw);
+    var t = normText(raw);
+    if (/^\d{5}(\.\d+)?$/.test(t)) {
+      var p = serialToParts(parseFloat(t));
+      return p.date.getUTCFullYear() + "-" + pad2(p.date.getUTCMonth() + 1) + "-" + pad2(p.date.getUTCDate());
+    }
+    return t;
+  }
+
   /**
    * 支持：2026-11-20(19:30-21:10) / 2026/11/20 19:30-21:10 /
-   *       11月20日 晚上7:30 / Excel 序列号 / Date 对象
+   *       11月20日 晚上7:30 / Excel 序列号 / Date 对象 /
+   *       日期与时间分列 / 日期列是 Excel 日期 / 只有“第 N 场”
    */
   function parseExamTime(timeRaw, dateRaw, yearHint) {
     var out = { date: "", start: "", end: "" };
-    var timeText = normText(timeRaw);
-    var dateText = normText(dateRaw);
     var year = yearHint || new Date().getFullYear();
-
-    // 1. 纯日期列 + 纯时间列
-    if (timeText && !/\d{4}[-/年]/.test(timeText) && dateText) {
-      var u = timeText;
-      if (/^\d{5}(\.\d+)?$/.test(u)) {
-        var parts = serialToParts(parseFloat(u));
-        return {
-          date: parts.date.getUTCFullYear() + "-" + pad2(parts.date.getUTCMonth() + 1) + "-" + pad2(parts.date.getUTCDate()),
-          start: pad2(parts.hh) + ":" + pad2(parts.mm),
-          end: ""
-        };
-      }
-      var rangeOnly = u.match(/(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})\s*[-–—~～至]\s*(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})/);
-      if (rangeOnly) {
-        out.start = pad2(normalizeHour(+rangeOnly[2], rangeOnly[1])) + ":" + rangeOnly[3];
-        out.end = pad2(normalizeHour(+rangeOnly[5], rangeOnly[4])) + ":" + rangeOnly[6];
-      }
-      timeText = dateText + " " + u;
-    }
-
-    if (!timeText && !dateText) return out;
-
-    var seq = /^\d{5}(\.\d+)?$/.test(timeText) ? parseFloat(timeText) : null;
-    if (seq !== null && seq > 20000) {
-      var p = serialToParts(seq);
-      out.date = p.date.getUTCFullYear() + "-" + pad2(p.date.getUTCMonth() + 1) + "-" + pad2(p.date.getUTCDate());
-      out.start = pad2(p.hh) + ":" + pad2(p.mm);
-      return out;
-    }
+    var timeText = normText(timeRaw);
+    var dateText = normalizeDateRaw(dateRaw);
 
     if (timeRaw instanceof Date && !isNaN(timeRaw)) {
-      var dt = timeRaw;
-      out.date = dt.getFullYear() + "-" + pad2(dt.getMonth() + 1) + "-" + pad2(dt.getDate());
-      if (dt.getHours() || dt.getMinutes()) out.start = pad2(dt.getHours()) + ":" + pad2(dt.getMinutes());
+      out.date = fmtDate(timeRaw);
+      if (timeRaw.getHours() || timeRaw.getMinutes()) {
+        out.start = pad2(timeRaw.getHours()) + ":" + pad2(timeRaw.getMinutes());
+      }
+      if (!out.date && dateText) out.date = parseDateText(dateText, year);
       return out;
     }
 
-    // 2. 日期
-    var dm = timeText.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?/);
-    if (dm) {
-      out.date = dm[1] + "-" + pad2(dm[2]) + "-" + pad2(dm[3]);
-    } else {
-      var m2 = timeText.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
-      if (m2) out.date = year + "-" + pad2(m2[1]) + "-" + pad2(m2[2]);
+    if (timeText && /^\d+(\.\d+)?$/.test(timeText)) {
+      var num = parseFloat(timeText);
+      if (num > 20000) {
+        var p = serialToParts(num);
+        out.date = p.date.getUTCFullYear() + "-" + pad2(p.date.getUTCMonth() + 1) + "-" + pad2(p.date.getUTCDate());
+        out.start = pad2(p.hh) + ":" + pad2(p.mm);
+        if (!out.date && dateText) out.date = parseDateText(dateText, year);
+        return out;
+      }
+      if (num > 0 && num < 1) {
+        out.start = clockRange(timeText).start;
+        out.date = parseDateText(dateText, year);
+        return out;
+      }
     }
 
-    // 3. 起止时间
-    var tm = timeText.match(/(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})\s*[-–—~～至到]\s*(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})/);
-    if (tm) {
-      out.start = pad2(normalizeHour(+tm[2], tm[1])) + ":" + tm[3];
-      out.end = pad2(normalizeHour(+tm[5], tm[4])) + ":" + tm[6];
-    } else {
-      var single = timeText.match(/(上午|下午|晚上|中午)?\s*(\d{1,2})\s*[:：]\s*(\d{2})/);
-      if (single) out.start = pad2(normalizeHour(+single[2], single[1])) + ":" + single[3];
-    }
-
+    out.date = parseDateText(timeText, year) || parseDateText(dateText, year);
+    var clock = clockRange(timeText);
+    if (!clock.start) clock = clockRange(dateText);
+    out.start = clock.start;
+    out.end = clock.end;
     return out;
   }
 
   /* ---------------------------- 班级字段拆解 ---------------------------- */
-  function parseClassLabel(raw, gradeCol, majorCol) {
-    var s = normText(raw).replace(/\s+/g, "");
-    var result = { grade: normText(gradeCol), major: normText(majorCol), classNo: "", cls: s };
+  function normalizeGrade(g) {
+    var t = normText(g);
+    var m = t.match(/(\d{2,4})\s*级?/);
+    if (!m) return t;
+    var y = m[1].length === 4 ? m[1].slice(2) : m[1];
+    return y + "级";
+  }
 
-    if (s) {
-      var m = s.match(/^(\d{2,4})\s*级\s*(.+?)\s*(\d{1,3})\s*班$/);
-      if (m) {
-        var yy = m[1].length === 4 ? m[1].slice(2) : m[1];
-        if (!result.grade) result.grade = yy + "级";
-        if (!result.major) result.major = m[2];
-        result.classNo = m[3].padStart(2, "0");
-        result.cls = result.grade + result.major + result.classNo + "班";
-        return result;
-      }
-      var m2 = s.match(/^(.+?)\s*(\d{1,3})\s*班$/);
-      if (m2) {
-        if (!result.major) result.major = m2[1];
-        result.classNo = m2[2].padStart(2, "0");
-      }
+  /**
+   * 兼容常见班级写法：
+   *   2024级计算机科学与技术（1）班 / 24级计科1班
+   *   2024软件工程1班 / 计科2401班 / 软件24-3班 / 24计科1班
+   *   软件工程（1）班 / 2401班
+   * 年级、专业若另有独立列，以独立列为准。
+   */
+  function parseClassLabel(raw, gradeCol, majorCol) {
+    var original = normText(raw);
+    var s = original.replace(/\s+/g, "").replace(/（/g, "(").replace(/）/g, ")");
+    var result = { grade: normalizeGrade(gradeCol), major: normText(majorCol), classNo: "", cls: original };
+    if (!s) return result;
+
+    var m;
+    var grade = "";
+    var major = "";
+    var classNo = "";
+
+    if ((m = s.match(/^(\d{2,4})级(.+?)(?:\((\d{1,3})\)|(\d{1,3}))班$/))) {
+      grade = m[1]; major = m[2]; classNo = m[3] || m[4];
+    } else if ((m = s.match(/^(\d{4})([^\d].*?)(?:\((\d{1,3})\)|(\d{1,3}))班$/))) {
+      grade = m[1]; major = m[2]; classNo = m[3] || m[4];
+    } else if ((m = s.match(/^([^\d].*?)(\d{4})班$/))) {
+      major = m[1]; grade = m[2].slice(0, 2); classNo = m[2].slice(2);
+    } else if ((m = s.match(/^(.+?)(\d{2})[-—](\d{1,3})班$/))) {
+      major = m[1]; grade = m[2]; classNo = m[3];
+    } else if ((m = s.match(/^(\d{2})([^\d].*?)(?:\((\d{1,3})\)|(\d{1,3}))班$/))) {
+      grade = m[1]; major = m[2]; classNo = m[3] || m[4];
+    } else if ((m = s.match(/^(\d{1,4})班$/))) {
+      if (m[1].length === 4) { grade = m[1].slice(0, 2); classNo = m[1].slice(2); }
+      else classNo = m[1];
+    } else if ((m = s.match(/^(.+?)(?:\((\d{1,3})\)|(\d{1,3}))班$/))) {
+      major = m[1]; classNo = m[2] || m[3];
+    } else if ((m = s.match(/^(\d{2,4})级(.+)$/))) {
+      grade = m[1]; major = m[2];
+    } else if ((m = s.match(/^([^\d].*?)(\d{4})$/))) {
+      major = m[1]; grade = m[2].slice(0, 2); classNo = m[2].slice(2);
     }
 
-    if (result.grade) {
-      var g = result.grade.match(/(\d{2,4})\s*级?/);
-      if (g) {
-        var y2 = g[1].length === 4 ? g[1].slice(2) : g[1];
-        result.grade = y2 + "级";
-      }
+    if (classNo) result.classNo = String(classNo).padStart(2, "0");
+    if (!result.grade && grade) result.grade = normalizeGrade(grade);
+    if (!result.major && major) result.major = major;
+
+    if (result.grade || result.major || result.classNo) {
+      result.cls = (result.grade || "") + (result.major || "") + (result.classNo || "") + "班";
     }
     return result;
   }
@@ -264,6 +338,13 @@
       .map(function (x) { return x.trim(); })
       .filter(Boolean)
       .filter(function (x, i, arr) { return arr.indexOf(x) === i; });
+  }
+
+  function weekdayOf(dateStr) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || "");
+    if (!m) return "";
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return "日一二三四五六".charAt(d.getDay());
   }
 
   /* ------------------------------- 主流程 ------------------------------- */
@@ -300,13 +381,26 @@
       var rawCourse = normText(cell(row, "course"));
       if (SKIP_ROW.test(rawCourse)) { skipped++; continue; }
 
-      var clsInfo = parseClassLabel(cell(row, "cls"), cell(row, "grade"), cell(row, "major"));
       var timeInfo = parseExamTime(cell(row, "time"), cell(row, "date"), yearHint);
 
-      // 无课程且无班级 → 非数据行
-      if (!rawCourse && !clsInfo.cls) { skipped++; continue; }
-      // 只有课程、没有班级也没有时间 → 标题类行
-      if (!clsInfo.cls && !timeInfo.date) { skipped++; continue; }
+      // 分列的开始时间 / 结束时间（不少学校把时段拆成两列）
+      if (!timeInfo.start && (cell(row, "startTime") || cell(row, "endTime"))) {
+        var startClock = clockRange(cell(row, "startTime"));
+        var endClock = clockRange(cell(row, "endTime"));
+        timeInfo.start = startClock.start || startClock.end || "";
+        timeInfo.end = endClock.start || endClock.end || "";
+      }
+
+      // 班级：优先「班级」列；只有「考试班级 / 教学班」时按班级拆成多行
+      var clsLabels = splitList(cell(row, "cls"));
+      var teachLabels = splitList(cell(row, "teaching"));
+      var labels = clsLabels.length ? clsLabels : teachLabels;
+      var gradeCol = normText(cell(row, "grade"));
+      var majorCol = normText(cell(row, "major"));
+      var hasOwner = labels.length > 0 || !!gradeCol || !!majorCol;
+
+      if (!rawCourse && !hasOwner) { skipped++; continue; }
+      if (!hasOwner && !timeInfo.date) { skipped++; continue; }
 
       var course = rawCourse || lastCourse;
       if (!rawCourse && course) inherited++;
@@ -322,31 +416,41 @@
       if (!timeInfo.date) { skipped++; continue; }
 
       var rooms = splitList(cell(row, "room"));
-      var teaching = splitList(cell(row, "teaching"));
       var count = parseInt(normText(cell(row, "count")).replace(/[^\d]/g, ""), 10);
+      var weekdayText = normText(cell(row, "weekday")) || weekdayOf(timeInfo.date);
+      var teachingText = teachLabels.length
+        ? teachLabels.join(";")
+        : (labels.length > 1 ? labels.join(";") : "");
+      if (!labels.length) labels = [""];
+      // 一行覆盖多个班时，人数是合计值，拆行后按班数均分
+      var perCount = labels.length > 1 && !isNaN(count)
+        ? Math.max(1, Math.round(count / labels.length))
+        : count;
 
-      var classKey = clsInfo.cls ? [clsInfo.grade, clsInfo.major, clsInfo.classNo].join("|") : "";
-
-      records.push({
-        id: "",
-        course: course,
-        code: code,
-        college: college,
-        date: timeInfo.date,
-        start: timeInfo.start,
-        end: timeInfo.end,
-        week: parseInt(normText(cell(row, "week")), 10) || null,
-        weekday: normText(cell(row, "weekday")),
-        grade: clsInfo.grade,
-        major: clsInfo.major,
-        classNo: clsInfo.classNo,
-        cls: clsInfo.cls,
-        classKey: classKey,
-        headcount: isNaN(count) ? null : count,
-        rooms: rooms,
-        teaching: teaching.join(";"),
-        sheet: sheetName,
-        row: r + 1
+      labels.forEach(function (label) {
+        var clsInfo = parseClassLabel(label, gradeCol, majorCol);
+        var classKey = clsInfo.cls ? [clsInfo.grade, clsInfo.major, clsInfo.classNo].join("|") : "";
+        records.push({
+          id: "",
+          course: course,
+          code: code,
+          college: college,
+          date: timeInfo.date,
+          start: timeInfo.start,
+          end: timeInfo.end,
+          week: parseInt(normText(cell(row, "week")), 10) || null,
+          weekday: weekdayText,
+          grade: clsInfo.grade,
+          major: clsInfo.major,
+          classNo: clsInfo.classNo,
+          cls: clsInfo.cls,
+          classKey: classKey,
+          headcount: isNaN(perCount) ? null : perCount,
+          rooms: rooms,
+          teaching: teachingText,
+          sheet: sheetName,
+          row: r + 1
+        });
       });
     }
 
@@ -420,7 +524,7 @@
   }
 
   /**
-   * 解析一个工作簿。多个 sheet 时选记录数最多且表头最完整的那张。
+   * 解析一个工作簿。多个 sheet 会合并导入（按课程/日期/时段/班级/地点去重）。
    * @returns {{ok:boolean, dataset?:object, error?:string, warnings?:string[]}}
    */
   function parseWorkbook(wb, XLSX, opts) {
@@ -446,31 +550,56 @@
     candidates.sort(function (a, b) { return b.records.length - a.records.length; });
     var chosen = candidates[0];
 
+    // 多工作表（常见于按学院/年级分表）合并导入，完全相同的行去重
+    var records = [];
+    var seen = {};
+    var duplicated = 0;
+    var inheritedTotal = 0;
+    var skippedTotal = 0;
+    candidates.forEach(function (c) {
+      inheritedTotal += c.stats.inherited;
+      skippedTotal += c.stats.skipped;
+      c.records.forEach(function (rec) {
+        var key = [rec.course, rec.date, rec.start, rec.end, rec.cls, (rec.rooms || []).join(","), rec.teaching].join("|");
+        if (seen[key]) { duplicated++; return; }
+        seen[key] = 1;
+        records.push(rec);
+      });
+    });
+
     if (candidates.length > 1) {
       warnings.push(
-        "该文件含 " + candidates.length + " 张可解析工作表，已选用数据量最大的「" +
-        chosen.sheet + "」（" + chosen.records.length + " 条）。"
+        "该文件含 " + candidates.length + " 张可解析工作表（" +
+        candidates.map(function (c) { return c.sheet; }).slice(0, 4).join("、") +
+        (candidates.length > 4 ? " 等" : "") + "），已合并 " + records.length + " 条记录" +
+        (duplicated ? "，忽略重复 " + duplicated + " 条" : "") + "。"
       );
     }
-    if (chosen.stats.inherited > 0) {
-      warnings.push(chosen.stats.inherited + " 条记录通过向上继承补齐了课程/时间列（原表为视觉合并但未设合并区域）。");
+    if (inheritedTotal > 0) {
+      warnings.push(inheritedTotal + " 条记录通过向上继承补齐了课程/时间列（原表为视觉合并但未设合并区域）。");
     }
-    if (chosen.stats.skipped > 0) {
-      warnings.push("已跳过 " + chosen.stats.skipped + " 行非数据内容（标题、合计或空行）。");
+    if (skippedTotal > 0) {
+      warnings.push("已跳过 " + skippedTotal + " 行非数据内容（标题、合计或空行）。");
     }
-
-    var records = chosen.records;
     var noClass = records.filter(function (r) { return !r.cls; }).length;
     if (noClass) warnings.push(noClass + " 条记录没有具体班级（如多班合考），仅能按年级/专业检索。");
 
     var noRoom = records.filter(function (r) { return !r.rooms.length; }).length;
     if (noRoom) warnings.push(noRoom + " 条记录缺少考试地点。");
 
+    var noTime = records.filter(function (r) { return !r.start; }).length;
+    if (noTime) warnings.push(noTime + " 条记录只有日期、没有具体时段，倒数按当天结束计算。");
+
     // 教务表常见「补录行」：班级列写 A 班，教学班组成却是 B 班，人数为 1。
     // 以班级列为筛选依据，但必须提示，避免同学误以为数据错乱。
     var mismatch = records.filter(function (r) {
-      if (!r.cls || !r.teaching) return false;
-      return r.teaching.split(";").indexOf(r.cls) === -1;
+      if (!r.cls || !r.teaching || !r.classKey) return false;
+      // 班级写法可能一处带年级、一处不带，按解析后的年级/专业/班号比较
+      var keys = r.teaching.split(";").map(function (label) {
+        var info = parseClassLabel(label, "", "");
+        return [info.grade, info.major, info.classNo].join("|");
+      });
+      return keys.indexOf(r.classKey) === -1;
     }).length;
     if (mismatch) {
       warnings.push(mismatch + " 条记录的「班级」不在同行「教学班组成」中（多为教务补录或合考行），筛选以班级列为准。");
@@ -499,7 +628,9 @@
         title: title,
         sourceName: opts.sourceName || "",
         importedAt: new Date().toISOString(),
-        sheet: chosen.sheet,
+        sheet: candidates.length > 1
+          ? candidates.map(function (c) { return c.sheet; }).join(" / ")
+          : chosen.sheet,
         headerRow: chosen.headerRow,
         columns: chosen.columns,
         summary: summary,
